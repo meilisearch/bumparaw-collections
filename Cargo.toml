@@ -1,0 +1,16 @@
+[package]
+name = "raw-collections"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bumpalo = { version = "3.16.0", features = [
+    "boxed",
+    "collections",
+    "serde",
+    "std",
+    "allocator-api2",
+] }
+hashbrown = { version = "0.15.0", features = ["allocator-api2", "serde"] }
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = { version = "1.0.128", features = ["preserve_order", "raw_value"] }
