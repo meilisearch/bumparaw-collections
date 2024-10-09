@@ -4,6 +4,8 @@
 
 #![warn(missing_docs)]
 
+/// Contains [`allocator_api2::Allocator`] implementations for [`bumpalo`] objects.
+pub mod alloc;
 /// Contains advanced type for [`bumpalo`]-enabled deserialization.
 pub mod de;
 /// Contains a simple `str` interner
