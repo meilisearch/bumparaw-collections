@@ -1,4 +1,5 @@
 use std::{
+    borrow::Borrow,
     cell::Ref,
     ops::{Deref, DerefMut},
 };
@@ -130,6 +131,80 @@ unsafe impl<'bump> Allocator for RefBump<'bump> {
     where
         Self: Sized,
     {
+        self
+    }
+}
+
+/// A newtype wrapper to implement common traits of `str` on `Ref<str>`.
+pub struct RefStr<'bump>(pub Ref<'bump, str>);
+
+impl<'bump> std::hash::Hash for RefStr<'bump> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+impl<'bump> PartialEq for RefStr<'bump> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.deref() == other.0.deref()
+    }
+}
+
+impl<'bump> Eq for RefStr<'bump> {}
+
+impl<'bump> Borrow<str> for RefStr<'bump> {
+    fn borrow(&self) -> &str {
+        self
+    }
+}
+
+impl<'bump> Deref for RefStr<'bump> {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'bump> AsRef<str> for RefStr<'bump> {
+    fn as_ref(&self) -> &str {
+        self
+    }
+}
+
+/// A newtype wrapper to implement common traits of `[u8]` on `Ref<[u8]>`.
+pub struct RefBytes<'bump>(pub Ref<'bump, [u8]>);
+
+impl<'bump> std::hash::Hash for RefBytes<'bump> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+impl<'bump> PartialEq for RefBytes<'bump> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.deref() == other.0.deref()
+    }
+}
+
+impl<'bump> Eq for RefBytes<'bump> {}
+
+impl<'bump> Borrow<[u8]> for RefBytes<'bump> {
+    fn borrow(&self) -> &[u8] {
+        self
+    }
+}
+
+impl<'bump> Deref for RefBytes<'bump> {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'bump> AsRef<[u8]> for RefBytes<'bump> {
+    fn as_ref(&self) -> &[u8] {
         self
     }
 }
