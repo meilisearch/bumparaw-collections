@@ -136,6 +136,7 @@ unsafe impl<'bump> Allocator for RefBump<'bump> {
 }
 
 /// A newtype wrapper to implement common traits of `str` on `Ref<str>`.
+#[derive(Debug)]
 pub struct RefStr<'bump>(pub Ref<'bump, str>);
 
 impl<'bump> std::hash::Hash for RefStr<'bump> {
@@ -173,6 +174,7 @@ impl<'bump> AsRef<str> for RefStr<'bump> {
 }
 
 /// A newtype wrapper to implement common traits of `[u8]` on `Ref<[u8]>`.
+#[derive(Debug)]
 pub struct RefBytes<'bump>(pub Ref<'bump, [u8]>);
 
 impl<'bump> std::hash::Hash for RefBytes<'bump> {
