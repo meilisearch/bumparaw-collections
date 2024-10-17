@@ -126,6 +126,11 @@ impl<'bump> RawMap<'bump> {
         self.data.as_slice()
     }
 
+    /// Consumes `self` and returns the underlying vec.
+    pub fn into_vec(self) -> BVec<'bump, (&'bump str, &'bump RawValue)> {
+        self.data
+    }
+
     /// Consumes `self` and returns the underlying vec as a bump slice.
     pub fn into_bump_slice(self) -> &'bump [(&'bump str, &'bump RawValue)] {
         self.data.into_bump_slice()
