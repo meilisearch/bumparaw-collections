@@ -84,11 +84,17 @@ impl<'bump> RawMap<'bump> {
         }
     }
 
-    /// Retrieves the value associated with a key, if any.
+    /// Retrieves the value associated with a key, if present.
     #[inline]
     pub fn get(&self, key: &str) -> Option<&'bump RawValue> {
         let index = self.cache.get(key)?;
         self.data.get(*index).map(|(_, v)| *v)
+    }
+
+    /// Retrieves the index of a key in the data slice, if present.
+    #[inline]
+    pub fn get_index(&self, key: &str) -> Option<usize> {
+        self.cache.get(key).copied()
     }
 
     /// The number of elements in the map.
