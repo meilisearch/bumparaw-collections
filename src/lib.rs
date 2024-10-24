@@ -12,10 +12,13 @@ pub mod de;
 pub mod interner;
 /// Contains [`crate::map::RawMap`] and associated types.
 pub mod map;
+/// Parses [`serde_json::value::RawValue`] in bumpalo-backed types.
+mod value;
 /// Contains [`crate::vec::RawVec`] and associated types.
 pub mod vec;
 
 pub use map::RawMap;
+pub use value::Value;
 pub use vec::RawVec;
 
 #[cfg(test)]
