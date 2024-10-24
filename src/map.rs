@@ -6,6 +6,7 @@ use serde_json::value::RawValue;
 use bumpalo::collections::Vec as BVec;
 
 mod de;
+mod frozen;
 /// Contains iterator types and implementations for [`RawMap`].
 pub mod iter;
 
@@ -127,12 +128,71 @@ impl<'bump> RawMap<'bump> {
     }
 
     /// Consumes `self` and returns the underlying vec.
+    #[inline]
     pub fn into_vec(self) -> BVec<'bump, (&'bump str, &'bump RawValue)> {
         self.data
     }
 
     /// Consumes `self` and returns the underlying vec as a bump slice.
+    #[inline]
     pub fn into_bump_slice(self) -> &'bump [(&'bump str, &'bump RawValue)] {
         self.data.into_bump_slice()
     }
+
+    /// Makes this map [`Send`] by forbidding any future modifications.
+    #[inline]
+    pub fn freeze(self) -> FrozenRawMap<'bump> {
+        FrozenRawMap::new(self)
+    }
 }
+
+/// A [`RawMap`] that can no longer be modified, but can be sent between threads safely.
+pub struct FrozenRawMap<'bump> {
+    data: &'bump [(&'bump str, &'bump RawValue)],
+    cache: frozen::FrozenMap<'bump, &'bump str, usize, DefaultHashBuilder>,
+}
+
+impl<'bump> FrozenRawMap<'bump> {
+    /// Makes the passed map [`Send`] by preventing any future modifications.
+    #[inline]
+    pub fn new(map: RawMap<'bump>) -> Self {
+        FrozenRawMap {
+            data: map.data.into_bump_slice(),
+            cache: frozen::FrozenMap::new(map.cache),
+        }
+    }
+
+    /// Retrieves the value associated with a key, if present.
+    #[inline]
+    pub fn get(&self, key: &str) -> Option<&'bump RawValue> {
+        let index = self.cache.get(key)?;
+        self.data.get(*index).map(|(_, v)| *v)
+    }
+
+    /// Retrieves the index of a key in the data slice, if present.
+    #[inline]
+    pub fn get_index(&self, key: &str) -> Option<usize> {
+        self.cache.get(key).copied()
+    }
+
+    /// The number of elements in the map.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    /// `true` if there are no elements in the map.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
+    /// Returns a copy of the underlying slice.
+    #[inline]
+    pub fn as_bump_slice(&self) -> &'bump [(&'bump str, &'bump RawValue)] {
+        self.data
+    }
+}
+
+pub use frozen::FrozenMap;
+pub use frozen::FrozenRawEntryBuilderMut;
