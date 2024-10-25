@@ -6,11 +6,9 @@ use hashbrown::{
     Equivalent,
 };
 
-/// A bumpalo-backed [`hashbrown::HashMap`] that can no longer be modified, but can be sent between threads safely.
-///
-/// Note that this prevents modifications such as inserting or removing elements from the map, but **not** *modifying*
-/// values in the map.
-pub struct FrozenMap<'bump, K, V, S>(hashbrown::HashMap<K, V, S, &'bump Bump>);
+/// A view into a bumpalo-backed [`hashbrown::HashMap`] that prevent insertions and removals,
+/// but can be sent between threads safely.
+pub struct FrozenMap<'a, 'bump, K, V, S>(&'a mut hashbrown::HashMap<K, V, S, &'bump Bump>);
 
 /// SAFETY:
 ///
@@ -19,7 +17,7 @@ pub struct FrozenMap<'bump, K, V, S>(hashbrown::HashMap<K, V, S, &'bump Bump>);
 /// - The FrozenMap does not leak a shared reference to the allocator **or its inner hashmap**.
 ///
 /// So, it is safe to send the contained shared reference to the allocator
-unsafe impl<'bump, K, V, S> Send for FrozenMap<'bump, K, V, S>
+unsafe impl<'a, 'bump, K, V, S> Send for FrozenMap<'a, 'bump, K, V, S>
 where
     K: Send,
     V: Send,
@@ -27,10 +25,10 @@ where
 {
 }
 
-impl<'bump, K, V, S> FrozenMap<'bump, K, V, S> {
+impl<'a, 'bump, K, V, S> FrozenMap<'a, 'bump, K, V, S> {
     /// Makes the passed map [`Send`] by preventing any future modifications.
     #[inline]
-    pub fn new(map: hashbrown::HashMap<K, V, S, &'bump Bump>) -> Self {
+    pub fn new(map: &'a mut hashbrown::HashMap<K, V, S, &'bump Bump>) -> Self {
         Self(map)
     }
 
@@ -83,7 +81,7 @@ impl<'bump, K, V, S> FrozenMap<'bump, K, V, S> {
     }
 }
 
-impl<'bump, K, V, S> FrozenMap<'bump, K, V, S>
+impl<'a, 'bump, K, V, S> FrozenMap<'a, 'bump, K, V, S>
 where
     K: Eq + Hash,
     S: std::hash::BuildHasher,
@@ -213,7 +211,7 @@ where
     }
 }
 
-impl<'bump, K, V, S> FrozenMap<'bump, K, V, S> {
+impl<'a, 'bump, K, V, S> FrozenMap<'a, 'bump, K, V, S> {
     /// Creates a raw immutable entry builder for the map.
     ///
     /// Raw entries provide the lowest level of control for searching and manipulating a map. They must be manually initialized with a hash and then manually searched.

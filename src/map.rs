@@ -141,24 +141,24 @@ impl<'bump> RawMap<'bump> {
 
     /// Makes this map [`Send`] by forbidding any future modifications.
     #[inline]
-    pub fn freeze(self) -> FrozenRawMap<'bump> {
+    pub fn freeze(&mut self) -> FrozenRawMap<'_, 'bump> {
         FrozenRawMap::new(self)
     }
 }
 
-/// A [`RawMap`] that can no longer be modified, but can be sent between threads safely.
-pub struct FrozenRawMap<'bump> {
-    data: &'bump [(&'bump str, &'bump RawValue)],
-    cache: frozen::FrozenMap<'bump, &'bump str, usize, DefaultHashBuilder>,
+/// A view into a [`RawMap`] that prevents insertions, but can be sent between threads safely.
+pub struct FrozenRawMap<'a, 'bump> {
+    data: &'a [(&'bump str, &'bump RawValue)],
+    cache: frozen::FrozenMap<'a, 'bump, &'bump str, usize, DefaultHashBuilder>,
 }
 
-impl<'bump> FrozenRawMap<'bump> {
+impl<'a, 'bump> FrozenRawMap<'a, 'bump> {
     /// Makes the passed map [`Send`] by preventing any future modifications.
     #[inline]
-    pub fn new(map: RawMap<'bump>) -> Self {
+    pub fn new(map: &'a mut RawMap<'bump>) -> Self {
         FrozenRawMap {
-            data: map.data.into_bump_slice(),
-            cache: frozen::FrozenMap::new(map.cache),
+            data: map.data.as_slice(),
+            cache: frozen::FrozenMap::new(&mut map.cache),
         }
     }
 
@@ -187,9 +187,9 @@ impl<'bump> FrozenRawMap<'bump> {
         self.data.is_empty()
     }
 
-    /// Returns a copy of the underlying slice.
+    /// Returns a reference to the underlying slice.
     #[inline]
-    pub fn as_bump_slice(&self) -> &'bump [(&'bump str, &'bump RawValue)] {
+    pub fn as_slice(&self) -> &'a [(&'bump str, &'bump RawValue)] {
         self.data
     }
 }
