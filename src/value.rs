@@ -12,13 +12,20 @@ pub enum Value<'bump> {
     /// A JSON boolean.
     Bool(bool),
     /// A JSON number.
-    Number(serde_json::Number),
+    Number(Number),
     /// A JSON string.
     String(&'bump str),
     /// A JSON array.
     Array(crate::RawVec<'bump>),
     /// A JSON object.
     Object(crate::RawMap<'bump>),
+}
+
+#[derive(Debug)]
+pub enum Number {
+    PosInt(u64),
+    NegInt(i64),
+    Finite(f64),
 }
 
 impl<'de, 'bump: 'de> Value<'de> {
@@ -57,21 +64,29 @@ impl<'de> Visitor<'de> for ValueVisitor<'de> {
     where
         E: serde::de::Error,
     {
-        Ok(Value::Number(serde_json::Number::from(v)))
+        Ok(if v < 0 {
+            Value::Number(Number::NegInt(v))
+        } else {
+            Value::Number(Number::PosInt(v as _))
+        })
     }
 
     fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        Ok(Value::Number(serde_json::Number::from(v)))
+        Ok(Value::Number(Number::PosInt(v)))
     }
 
     fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
     {
-        Ok(serde_json::Number::from_f64(v).map_or(Value::Null, Value::Number))
+        Ok(if v.is_finite() {
+            Value::Number(Number::Finite(v))
+        } else {
+            Value::Null
+        })
     }
 
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
