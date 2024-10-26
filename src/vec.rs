@@ -11,6 +11,7 @@ pub mod iter;
 /// A vector of [`RawValue`]s backed by a [`Bump`].
 ///
 /// All allocations happen in the associated [`Bump`].
+#[derive(Debug)]
 pub struct RawVec<'bump>(BVec<'bump, &'bump RawValue>);
 
 impl<'bump> Serialize for RawVec<'bump> {

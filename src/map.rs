@@ -20,6 +20,7 @@ pub mod iter;
 /// will respect the order of the first insertion.
 ///
 /// All allocations happen in the associated [`Bump`].
+#[derive(Debug)]
 pub struct RawMap<'bump> {
     data: BVec<'bump, (&'bump str, &'bump RawValue)>,
     cache: hashbrown::HashMap<&'bump str, usize, DefaultHashBuilder, &'bump Bump>,

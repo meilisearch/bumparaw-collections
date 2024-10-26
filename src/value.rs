@@ -5,6 +5,7 @@ use serde::de::Visitor;
 use serde_json::value::RawValue;
 
 /// Represents a partially parsed JSON value referencing the underlying data.
+#[derive(Debug)]
 pub enum Value<'bump> {
     /// A JSON null value.
     Null,
