@@ -145,6 +145,12 @@ impl<'bump> RawMap<'bump> {
     pub fn freeze(&mut self) -> FrozenRawMap<'_, 'bump> {
         FrozenRawMap::new(self)
     }
+
+    /// Returns a shared reference to the allocator backing this `Vec`.
+    #[inline]
+    pub fn bump(&self) -> &'bump Bump {
+        self.data.bump()
+    }
 }
 
 /// A view into a [`RawMap`] that prevents insertions, but can be sent between threads safely.

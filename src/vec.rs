@@ -97,4 +97,10 @@ impl<'bump> RawVec<'bump> {
     pub fn into_bump_slice(self) -> &'bump [&'bump RawValue] {
         self.0.into_bump_slice()
     }
+
+    /// Returns a shared reference to the allocator backing this `Vec`.
+    #[inline]
+    pub fn bump(&self) -> &'bump Bump {
+        self.0.bump()
+    }
 }
