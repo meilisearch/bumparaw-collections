@@ -13,7 +13,7 @@ pub mod interner;
 /// Contains [`crate::map::RawMap`], [`crate::map::FrozenMap`] and associated types.
 pub mod map;
 /// Parses [`serde_json::value::RawValue`] in bumpalo-backed types.
-mod value;
+pub mod value;
 /// Contains [`crate::vec::RawVec`] and associated types.
 pub mod vec;
 

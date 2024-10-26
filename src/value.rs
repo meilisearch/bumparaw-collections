@@ -22,9 +22,13 @@ pub enum Value<'bump> {
 }
 
 #[derive(Debug)]
+/// A JSON number
 pub enum Number {
+    /// Positive JSON number up to [`u64::MAX`]
     PosInt(u64),
+    /// Negative JSON number down to [`i64::MIN`]
     NegInt(i64),
+    /// Any other JSON number
     Finite(f64),
 }
 
@@ -64,11 +68,7 @@ impl<'de> Visitor<'de> for ValueVisitor<'de> {
     where
         E: serde::de::Error,
     {
-        Ok(if v < 0 {
-            Value::Number(Number::NegInt(v))
-        } else {
-            Value::Number(Number::PosInt(v as _))
-        })
+        Ok(Value::Number(Number::NegInt(v)))
     }
 
     fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
