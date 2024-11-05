@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 allocator-api2 = "0.2.18"
+bitpacking = "0.9.2"
 bumpalo = { version = "3.16.0", features = [
     "boxed",
     "collections",
@@ -15,3 +16,6 @@ bumpalo = { version = "3.16.0", features = [
 hashbrown = { version = "0.15.0", features = ["allocator-api2", "serde"] }
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = { version = "1.0.128", features = ["preserve_order", "raw_value"] }
+
+[dev-dependencies]
+rand = { version = "0.8.5", default-features = false, features = ["std_rng"] }

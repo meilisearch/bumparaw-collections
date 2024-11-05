@@ -6,6 +6,8 @@
 
 /// Contains [`allocator_api2::alloc::Allocator`] implementations for [`bumpalo`] objects.
 pub mod alloc;
+/// Contains [`crate::bbbul::Bbbul`] and [`crate::bbbul::FrozenBbbul`] types.
+pub mod bbbul;
 /// Contains advanced type for [`bumpalo`]-enabled deserialization.
 pub mod de;
 /// Contains a simple `str` interner
@@ -17,6 +19,7 @@ pub mod value;
 /// Contains [`crate::vec::RawVec`] and associated types.
 pub mod vec;
 
+pub use bbbul::{Bbbul, FrozenBbbul};
 pub use map::RawMap;
 pub use value::Value;
 pub use vec::RawVec;
