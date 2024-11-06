@@ -266,10 +266,14 @@ pub struct IterAndClear<'bump, B> {
 }
 
 impl<B: BitPacker> IterAndClear<'_, B> {
-    /// The next block of `u32`s decompressed just for you.
+    /// The next block of `u32`s decompressed and ordered.
+    ///
+    /// Note that each block contains an ordered list of
+    /// numbers but the number are not ordered between two blocks.
     pub fn next_block(&mut self) -> Option<&[u32]> {
         if self.area_len != 0 {
-            let numbers = &self.area[..self.area_len];
+            let numbers = &mut self.area[..self.area_len];
+            numbers.sort_unstable();
             self.area_len = 0;
             Some(numbers)
         } else if let Some(node) = self.head.take() {
