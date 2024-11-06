@@ -53,14 +53,15 @@ pub struct Bbbul<'bump, B> {
 #[derive(Debug)]
 #[repr(C)]
 struct Node {
-    next: Option<NonNull<Node>>,
+    next_node: Option<NonNull<u8>>,
+    next_node_len: u32,
     num_bits: u8,
     mantissa: u8,
     bytes: [u8],
 }
 
 impl Node {
-    const BASE_SIZE: usize = mem::size_of::<(Option<NonNull<Node>>, u8)>();
+    const BASE_SIZE: usize = mem::size_of::<(Option<NonNull<u8>>, u32, u8, u8)>();
 
     #[allow(clippy::mut_from_ref)]
     fn new_in(block_size: usize, bump: &Bump) -> &mut Node {
@@ -69,18 +70,22 @@ impl Node {
         let layout = Layout::from_size_align(total_size, align).unwrap();
         let non_null = bump.alloc_layout(layout);
 
-        /// Constructs a typed fat-pointer from a raw pointer and the allocation size.
-        // https://users.rust-lang.org/t/construct-fat-pointer-to-struct/29198/9
-        unsafe fn fatten(data: NonNull<u8>, len: usize) -> *mut Node {
-            let slice = unsafe { slice::from_raw_parts(data.as_ptr() as *mut (), len) };
-            slice as *const [()] as *mut Node
-        }
-
         unsafe {
             // Init everything to zero and the next pointer too!
             ptr::write_bytes(non_null.as_ptr(), 0, total_size);
             &mut *fatten(non_null, block_size)
         }
+    }
+
+    fn set_next_node(&mut self, node: &Node) {
+        let len = node.bytes.len();
+        self.next_node_len = len.try_into().unwrap();
+        self.next_node = NonNull::new(NonNull::from(node).as_ptr() as *mut u8);
+    }
+
+    fn next_node(&self) -> Option<&Node> {
+        self.next_node
+            .map(|data| unsafe { &*fatten(data, self.next_node_len as usize) })
     }
 }
 
@@ -146,7 +151,7 @@ impl<'bump, B: BitPacker> Bbbul<'bump, B> {
                 debug_assert_eq!(node.bytes.len(), block_size);
                 node.num_bits = bits;
                 node.mantissa = mantissa;
-                debug_assert!(node.next.is_none());
+                debug_assert!(node.next_node().is_none());
 
                 // self.skipped_initials += initial.is_none() as usize;
 
@@ -159,8 +164,8 @@ impl<'bump, B: BitPacker> Bbbul<'bump, B> {
                 match &mut self.tail {
                     Some((tail, initial)) => {
                         *initial = new_initial;
-                        debug_assert!(tail.next.is_none());
-                        tail.next = NonNull::new(node);
+                        debug_assert!(tail.next_node().is_none());
+                        tail.set_next_node(node);
                         *tail = node;
                     }
                     None => {
@@ -249,7 +254,7 @@ impl<B: BitPacker> IterAndClear<'_, B> {
             self.area_len = 0;
             Some(numbers)
         } else if let Some(node) = self.head.take() {
-            self.head = node.next.map(|nn| unsafe { &*nn.as_ptr() });
+            self.head = node.next_node();
 
             let bp = B::new();
             let mantissa = node.mantissa;
@@ -271,6 +276,18 @@ impl<B: BitPacker> IterAndClear<'_, B> {
 fn initial_from_mantissa(initial: u32, mantissa: u8) -> Option<u32> {
     1u32.checked_shl(mantissa as u32).map(|d| initial / d)
 }
+
+/// Constructs a typed fat-pointer from a raw pointer and the allocation size.
+// https://users.rust-lang.org/t/construct-fat-pointer-to-struct/29198/9
+unsafe fn fatten(data: NonNull<u8>, len: usize) -> *mut Node {
+    let slice = unsafe { slice::from_raw_parts(data.as_ptr() as *mut (), len) };
+    slice as *const [()] as *mut Node
+}
+
+/// Make sure that Node base size has a size of 16 bytes.
+const _NODE_SIZE_16: () = if Node::BASE_SIZE != 16 {
+    unreachable!()
+};
 
 /// Make sure that Bbbul does not need drop.
 const _BBBUL_NEEDS_DROP: () = if needs_drop::<Bbbul<bitpacking::BitPacker4x>>() {
