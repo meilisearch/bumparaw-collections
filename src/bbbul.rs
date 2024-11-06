@@ -1,7 +1,7 @@
 use std::alloc::Layout;
+use std::marker;
 use std::mem::{self, needs_drop};
 use std::ptr::{self, NonNull};
-use std::{marker, slice};
 
 use bumpalo::Bump;
 
@@ -80,7 +80,7 @@ impl Node {
     fn set_next_node(&mut self, node: &Node) {
         let len = node.bytes.len();
         self.next_node_len = len.try_into().unwrap();
-        self.next_node = NonNull::new(NonNull::from(node).as_ptr() as *mut u8);
+        self.next_node = NonNull::new((node as *const Node) as *mut u8);
     }
 
     fn next_node(&self) -> Option<&Node> {
@@ -217,7 +217,7 @@ impl<'bump, B> FrozenBbbul<'bump, B> {
             area_len: mem::replace(&mut self.0.area_len, 0),
             area: self.0.area,
             initial: None,
-            head: self.0.head.take().map(|nn| unsafe { &*nn.as_ptr() }),
+            head: self.0.head.take().map(|nn| unsafe { nn.as_ref() }),
             _marker: marker::PhantomData,
         }
     }
@@ -278,10 +278,8 @@ fn initial_from_mantissa(initial: u32, mantissa: u8) -> Option<u32> {
 }
 
 /// Constructs a typed fat-pointer from a raw pointer and the allocation size.
-// https://users.rust-lang.org/t/construct-fat-pointer-to-struct/29198/9
 unsafe fn fatten(data: NonNull<u8>, len: usize) -> *mut Node {
-    let slice = unsafe { slice::from_raw_parts(data.as_ptr() as *mut (), len) };
-    slice as *const [()] as *mut Node
+    ptr::slice_from_raw_parts_mut(data.as_ptr(), len) as *mut Node
 }
 
 /// Make sure that Node base size has a size of 16 bytes.
