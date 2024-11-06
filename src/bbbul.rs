@@ -3,10 +3,9 @@ use std::mem::{self, needs_drop};
 use std::ptr::{self, NonNull};
 use std::{marker, slice};
 
-use bitpacking::BitPacker;
 use bumpalo::Bump;
 
-pub use bitpacking::{BitPacker1x, BitPacker4x, BitPacker8x};
+pub use bitpacking::{BitPacker, BitPacker1x, BitPacker4x, BitPacker8x};
 
 /// A `Bbbul` is a list of arbitrary `u32`s that can be only read once
 /// it as been frozzen by casting or wrapping it into a [`FrozenBbbul`].
