@@ -43,9 +43,9 @@ pub struct Bbbul<'bump, B> {
     /// Here we only keep &mut Node once. We made sure above to
     /// only have a pointer to the head and the next nodes.
     tail: Option<(&'bump mut Node, u32)>,
-    // /// The number of times an initial value cannot be used as
-    // /// it is larger than the smallest value of the block being
-    // /// compressed.
+    // The number of times an initial value cannot be used as
+    // it is larger than the smallest value of the block being
+    // compressed.
     // skipped_initials: usize,
     _marker: marker::PhantomData<B>,
 }
@@ -54,12 +54,8 @@ pub struct Bbbul<'bump, B> {
 #[repr(C)]
 struct Node {
     next: Option<NonNull<Node>>,
-    /// Note that we use one extra byte to decompress
-    /// the numbers: the num_bits and the skip_initial.
-    ///
-    /// We store this in a extra byte because if we store
-    /// it as a field in this struct the size of it will
-    /// go up to 24 bytes. Now it is 16 bytes (fat pointer).
+    num_bits: u8,
+    mantissa: u8,
     bytes: [u8],
 }
 
@@ -68,8 +64,7 @@ impl Node {
 
     #[allow(clippy::mut_from_ref)]
     fn new_in(block_size: usize, bump: &Bump) -> &mut Node {
-        let extra_bytes = block_size + 1;
-        let total_size = Self::BASE_SIZE + extra_bytes;
+        let total_size = Self::BASE_SIZE + block_size;
         let align = mem::align_of::<Option<NonNull<Node>>>();
         let layout = Layout::from_size_align(total_size, align).unwrap();
         let non_null = bump.alloc_layout(layout);
@@ -84,36 +79,8 @@ impl Node {
         unsafe {
             // Init everything to zero and the next pointer too!
             ptr::write_bytes(non_null.as_ptr(), 0, total_size);
-            &mut *fatten(non_null, extra_bytes)
+            &mut *fatten(non_null, block_size)
         }
-    }
-
-    fn set_num_bits(&mut self, num_bits: u8) {
-        self.bytes[0] |= !0b1000_0000 & num_bits
-    }
-
-    fn num_bits(&self) -> u8 {
-        self.bytes[0] & !0b1000_0000
-    }
-
-    fn set_skip_initial(&mut self, yes: bool) {
-        if yes {
-            self.bytes[0] |= 0b1000_0000
-        } else {
-            self.bytes[0] &= !0b1000_0000
-        }
-    }
-
-    fn skip_initial(&self) -> bool {
-        self.bytes[0] & 0b1000_0000 != 0
-    }
-
-    fn bytes_mut(&mut self) -> &mut [u8] {
-        &mut self.bytes[1..]
-    }
-
-    fn bytes(&self) -> &[u8] {
-        &self.bytes[1..]
     }
 }
 
@@ -127,7 +94,7 @@ impl<'bump, B: BitPacker> Bbbul<'bump, B> {
             area: bump.alloc_slice_fill_copy(B::BLOCK_LEN, 0),
             head: None,
             tail: None,
-            // skipped: 0,
+            // skipped_initials: 0,
             _marker: marker::PhantomData,
         }
     }
@@ -158,31 +125,36 @@ impl<'bump, B: BitPacker> Bbbul<'bump, B> {
                     vec.len() == self.area.len()
                 });
 
-                // Fetch the last compressed number to
-                let initial = self
-                    .tail
-                    .as_ref()
-                    .map(|(_, i)| *i)
-                    .filter(|n| *n < self.area[0]);
+                let (initial, mantissa) = match self.tail {
+                    Some((_, initial)) => {
+                        (0..u8::BITS as u8) // shift from 0 to 31
+                            .find(|&m| {
+                                initial_from_mantissa(initial, m)
+                                    .map_or(false, |n| n < self.area[0])
+                            })
+                            .map(|m| (Some(initial), m))
+                            .unwrap_or((None, u8::MAX))
+                    }
+                    None => (None, u8::MAX),
+                };
 
                 let bp = B::new();
                 let bits = bp.num_bits_strictly_sorted(initial, self.area);
                 let block_size = B::compressed_block_size(bits);
 
                 let node = Node::new_in(block_size, self.bump);
-                debug_assert_eq!(node.bytes().len(), block_size);
-                node.set_num_bits(bits);
-                debug_assert_eq!(node.num_bits(), bits);
-                node.set_skip_initial(initial.is_none());
-                debug_assert_eq!(node.skip_initial(), initial.is_none());
+                debug_assert_eq!(node.bytes.len(), block_size);
+                node.num_bits = bits;
+                node.mantissa = mantissa;
                 debug_assert!(node.next.is_none());
 
-                // self.skipped_initials += node.skip_initial as usize;
+                // self.skipped_initials += initial.is_none() as usize;
 
-                let new_initial = *self.area.first().unwrap();
+                let new_initial = self.area[0];
+                let initial = initial.and_then(|i| initial_from_mantissa(i, mantissa));
                 debug_assert!(initial.map_or(true, |n| n < self.area[0]));
-                let size = bp.compress_strictly_sorted(initial, self.area, node.bytes_mut(), bits);
-                debug_assert_eq!(node.bytes().len(), size);
+                let size = bp.compress_strictly_sorted(initial, self.area, &mut node.bytes, bits);
+                debug_assert_eq!(node.bytes.len(), size);
 
                 match &mut self.tail {
                     Some((tail, initial)) => {
@@ -218,7 +190,7 @@ impl<'bump, B> FrozenBbbul<'bump, B> {
         // have a mutable reference on one of them. So, we remove the
         // &mut Node in the tail and only keep the head NonNull<Node>.
         bbbul.tail = None;
-        // eprintln!("skipped {}", bbbul.skipped_initial);
+        // eprintln!("skipped {}", bbbul.skipped_initials);
         FrozenBbbul(bbbul)
     }
 
@@ -280,22 +252,24 @@ impl<B: BitPacker> IterAndClear<'_, B> {
             self.head = node.next.map(|nn| unsafe { &*nn.as_ptr() });
 
             let bp = B::new();
-            let initial = if node.skip_initial() {
-                None
-            } else {
-                self.initial
-            };
+            let mantissa = node.mantissa;
+            let initial = self
+                .initial
+                .and_then(|i| initial_from_mantissa(i, mantissa));
             let read_bytes =
-                bp.decompress_strictly_sorted(initial, node.bytes(), self.area, node.num_bits());
-
-            debug_assert_eq!(read_bytes, node.bytes().len());
-            self.initial = self.area.first().copied();
+                bp.decompress_strictly_sorted(initial, &node.bytes, self.area, node.num_bits);
+            debug_assert_eq!(read_bytes, node.bytes.len());
+            self.initial = Some(self.area[0]);
 
             Some(self.area)
         } else {
             None
         }
     }
+}
+
+fn initial_from_mantissa(initial: u32, mantissa: u8) -> Option<u32> {
+    1u32.checked_shl(mantissa as u32).map(|d| initial / d)
 }
 
 /// Make sure that Bbbul does not need drop.
@@ -373,7 +347,9 @@ mod tests {
         let mut frozen = FrozenBbbul::new(bbbul);
         let mut iter = frozen.iter_and_clear();
         while let Some(block) = iter.next_block() {
-            block.iter().for_each(|n| assert!(expected.remove(n)));
+            block
+                .iter()
+                .for_each(|n| assert!(expected.remove(n), "removing {n}"));
         }
         assert!(expected.is_empty());
     }
@@ -392,7 +368,12 @@ mod tests {
         let mut frozen = FrozenBbbul::new(bbbul);
         let mut iter = frozen.iter_and_clear();
         while let Some(block) = iter.next_block() {
-            block.iter().for_each(|n| assert!(expected.remove(n)));
+            block.iter().for_each(|n| {
+                if *n == 641 {
+                    eprintln!("trying to remove {n}")
+                }
+                assert!(expected.remove(n), "removing {n}")
+            });
         }
         assert!(expected.is_empty());
     }
