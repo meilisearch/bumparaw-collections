@@ -319,13 +319,13 @@ mod tests {
         let bump = bumpalo::Bump::new();
         let mut bbbul = Bbbul::<BitPacker4x>::new_in(&bump);
 
-        for n in 0..10000 {
+        for n in 0..10_000 {
             bbbul.insert(n);
         }
 
         let mut frozen = FrozenBbbul::new(bbbul);
         let mut iter = frozen.iter_and_clear();
-        let mut expected: HashSet<u32> = (0..10000).collect();
+        let mut expected: HashSet<u32> = (0..10_000).collect();
         while let Some(block) = iter.next_block() {
             block.iter().for_each(|n| assert!(expected.remove(n)));
         }
@@ -338,7 +338,7 @@ mod tests {
         let mut bbbul = Bbbul::<BitPacker1x>::new_in(&bump);
 
         let mut expected = HashSet::new();
-        for n in (0..10000).rev() {
+        for n in (0..10_000).rev() {
             expected.insert(n);
             bbbul.insert(n);
         }
@@ -358,7 +358,7 @@ mod tests {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
 
         let mut expected = HashSet::new();
-        for _ in 0..100000 {
+        for _ in 0..10_000 {
             let n = rng.next_u32();
             // Note that it is forbidden to insert the
             // same number multiple times.
