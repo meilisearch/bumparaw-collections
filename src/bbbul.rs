@@ -170,6 +170,9 @@ impl<'bump, B: BitPacker> Bbbul<'bump, B> {
                         *initial = new_initial;
                         debug_assert!(previous_tail.next_node().is_none());
                         *tail = next_tail.into();
+                        // **WARNING**: setting the reference to next tail must be done **after** `next_tail.into()`,
+                        //  because `next_tail.into()` is a `self` call on a `&mut`,
+                        //  invalidating any prior reference to `next_tail`
                         previous_tail.set_next_node(next_tail);
                     }
                     None => {
