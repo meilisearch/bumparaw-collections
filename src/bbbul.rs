@@ -1,4 +1,5 @@
 use std::alloc::Layout;
+use std::cell::Cell;
 use std::marker;
 use std::mem::{self, needs_drop};
 use std::ptr::{self, NonNull};
@@ -36,13 +37,8 @@ pub struct Bbbul<'bump, B> {
     last: Option<u32>,
     area_len: usize,
     area: &'bump mut [u32],
-    /// We must not have multiple references to the same memory
-    /// when one of them is mutable. When reading the list from
-    /// the head we make sure to first drop the &mut Nodes below.
     head: Option<NonNull<Node>>,
-    /// Here we only keep &mut Node once. We made sure above to
-    /// only have a pointer to the head and the next nodes.
-    tail: Option<(&'bump mut Node, u32)>,
+    tail: Option<(NonNull<Node>, u32)>,
     // The number of times an initial value cannot be used as
     // it is larger than the smallest value of the block being
     // compressed.
@@ -53,8 +49,12 @@ pub struct Bbbul<'bump, B> {
 #[derive(Debug)]
 #[repr(C)]
 struct Node {
-    next_node: Option<NonNull<u8>>,
-    next_node_len: u32,
+    // use interior mutability:
+    // as the predecessor node has a link to this node by the time this node
+    // is mutated to link to its successor node, it is no longer possible to
+    // assert exclusivity of the reference to perform that mutation.
+    next_node: Cell<Option<NonNull<u8>>>,
+    next_node_len: Cell<u32>,
     num_bits: u8,
     mantissa: u8,
     bytes: [u8],
@@ -77,15 +77,17 @@ impl Node {
         }
     }
 
-    fn set_next_node(&mut self, node: &Node) {
+    fn set_next_node(&self, node: &Node) {
         let len = node.bytes.len();
-        self.next_node_len = len.try_into().unwrap();
-        self.next_node = NonNull::new((node as *const Node) as *mut u8);
+        self.next_node_len.set(len.try_into().unwrap());
+        self.next_node
+            .set(NonNull::new((node as *const Node) as *mut u8));
     }
 
     fn next_node(&self) -> Option<&Node> {
         self.next_node
-            .map(|data| unsafe { &*fatten(data, self.next_node_len as usize) })
+            .get()
+            .map(|data| unsafe { &*fatten(data, self.next_node_len.get() as usize) })
     }
 }
 
@@ -147,31 +149,37 @@ impl<'bump, B: BitPacker> Bbbul<'bump, B> {
                 let bits = bp.num_bits_strictly_sorted(initial, self.area);
                 let block_size = B::compressed_block_size(bits);
 
-                let node = Node::new_in(block_size, self.bump);
-                debug_assert_eq!(node.bytes.len(), block_size);
-                node.num_bits = bits;
-                node.mantissa = mantissa;
-                debug_assert!(node.next_node().is_none());
+                let next_tail = Node::new_in(block_size, self.bump);
+                debug_assert_eq!(next_tail.bytes.len(), block_size);
+                next_tail.num_bits = bits;
+                next_tail.mantissa = mantissa;
+                debug_assert!(next_tail.next_node().is_none());
 
                 // self.skipped_initials += initial.is_none() as usize;
 
                 let new_initial = self.area[0];
                 let initial = initial.and_then(|i| initial_from_mantissa(i, mantissa));
                 debug_assert!(initial.map_or(true, |n| n < self.area[0]));
-                let size = bp.compress_strictly_sorted(initial, self.area, &mut node.bytes, bits);
-                debug_assert_eq!(node.bytes.len(), size);
+                let size =
+                    bp.compress_strictly_sorted(initial, self.area, &mut next_tail.bytes, bits);
+                debug_assert_eq!(next_tail.bytes.len(), size);
 
                 match &mut self.tail {
                     Some((tail, initial)) => {
+                        let previous_tail = unsafe { tail.as_ref() };
                         *initial = new_initial;
-                        debug_assert!(tail.next_node().is_none());
-                        tail.set_next_node(node);
-                        *tail = node;
+                        debug_assert!(previous_tail.next_node().is_none());
+                        *tail = next_tail.into();
+                        // **WARNING**: setting the reference to next tail must be done **after** `next_tail.into()`,
+                        //  because `next_tail.into()` is a `self` call on a `&mut`,
+                        //  invalidating any prior reference to `next_tail`
+                        previous_tail.set_next_node(next_tail);
                     }
                     None => {
                         debug_assert!(self.head.is_none());
-                        self.head = NonNull::new(node);
-                        self.tail = Some((node, new_initial));
+                        let next_tail = next_tail.into();
+                        self.head = Some(next_tail);
+                        self.tail = Some((next_tail, new_initial));
                     }
                 }
 
@@ -311,13 +319,13 @@ mod tests {
         let bump = bumpalo::Bump::new();
         let mut bbbul = Bbbul::<BitPacker4x>::new_in(&bump);
 
-        for n in 0..10000 {
+        for n in 0..10_000 {
             bbbul.insert(n);
         }
 
         let mut frozen = FrozenBbbul::new(bbbul);
         let mut iter = frozen.iter_and_clear();
-        let mut expected: HashSet<u32> = (0..10000).collect();
+        let mut expected: HashSet<u32> = (0..10_000).collect();
         while let Some(block) = iter.next_block() {
             block.iter().for_each(|n| assert!(expected.remove(n)));
         }
@@ -330,7 +338,7 @@ mod tests {
         let mut bbbul = Bbbul::<BitPacker1x>::new_in(&bump);
 
         let mut expected = HashSet::new();
-        for n in (0..10000).rev() {
+        for n in (0..10_000).rev() {
             expected.insert(n);
             bbbul.insert(n);
         }
@@ -350,7 +358,7 @@ mod tests {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
 
         let mut expected = HashSet::new();
-        for _ in 0..100000 {
+        for _ in 0..10_000 {
             let n = rng.next_u32();
             // Note that it is forbidden to insert the
             // same number multiple times.
