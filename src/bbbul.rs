@@ -116,76 +116,80 @@ impl<'bump, B: BitPacker> Bbbul<'bump, B> {
     ///
     ///  - If the inserted `u32` as already been inserted previously.
     pub fn insert(&mut self, n: u32) {
-        if self.last != Some(n) {
-            self.last = Some(n);
-            self.area[self.area_len] = n;
-            self.area_len += 1;
+        // If the last inserted number is already this one, we just stop here
+        if self.last == Some(n) {
+            return;
+        }
 
-            if self.area_len == self.area.len() {
-                self.area.sort_unstable();
+        self.last = Some(n);
+        self.area[self.area_len] = n;
+        self.area_len += 1;
 
-                // Checking in debug that the working area
-                // does not contain duplicated integers.
-                debug_assert!({
-                    let mut vec = self.area.to_vec();
-                    vec.dedup();
-                    vec.len() == self.area.len()
-                });
+        // If we don't need to push the area we just stop here
+        if self.area_len != self.area.len() {
+            return;
+        }
 
-                let (initial, mantissa) = match self.tail {
-                    Some((_, initial)) => {
-                        (0..u8::BITS as u8) // shift from 0 to 31
-                            .find(|&m| {
-                                initial_from_mantissa(initial, m)
-                                    .map_or(false, |n| n < self.area[0])
-                            })
-                            .map(|m| (Some(initial), m))
-                            .unwrap_or((None, u8::MAX))
-                    }
-                    None => (None, u8::MAX),
-                };
+        self.area.sort_unstable();
 
-                let bp = B::new();
-                let bits = bp.num_bits_strictly_sorted(initial, self.area);
-                let block_size = B::compressed_block_size(bits);
+        // Checking in debug that the working area
+        // does not contain duplicated integers.
+        debug_assert!({
+            let mut vec = self.area.to_vec();
+            vec.dedup();
+            vec.len() == self.area.len()
+        });
 
-                let next_tail = Node::new_in(block_size, self.bump);
-                debug_assert_eq!(next_tail.bytes.len(), block_size);
-                next_tail.num_bits = bits;
-                next_tail.mantissa = mantissa;
-                debug_assert!(next_tail.next_node().is_none());
+        let (initial, mantissa) = match self.tail {
+            Some((_, initial)) => {
+                (0..u8::BITS as u8) // shift from 0 to 31
+                    .find(|&m| {
+                        initial_from_mantissa(initial, m).map_or(false, |n| n < self.area[0])
+                    })
+                    .map(|m| (Some(initial), m))
+                    .unwrap_or((None, u8::MAX))
+            }
+            None => (None, u8::MAX),
+        };
 
-                // self.skipped_initials += initial.is_none() as usize;
+        let bp = B::new();
+        let bits = bp.num_bits_strictly_sorted(initial, self.area);
+        let block_size = B::compressed_block_size(bits);
 
-                let new_initial = self.area[0];
-                let initial = initial.and_then(|i| initial_from_mantissa(i, mantissa));
-                debug_assert!(initial.map_or(true, |n| n < self.area[0]));
-                let size =
-                    bp.compress_strictly_sorted(initial, self.area, &mut next_tail.bytes, bits);
-                debug_assert_eq!(next_tail.bytes.len(), size);
+        let next_tail = Node::new_in(block_size, self.bump);
+        debug_assert_eq!(next_tail.bytes.len(), block_size);
+        next_tail.num_bits = bits;
+        next_tail.mantissa = mantissa;
+        debug_assert!(next_tail.next_node().is_none());
 
-                match &mut self.tail {
-                    Some((tail, initial)) => {
-                        let previous_tail = unsafe { tail.as_ref() };
-                        *initial = new_initial;
-                        debug_assert!(previous_tail.next_node().is_none());
-                        *tail = next_tail.into();
-                        // **WARNING**: setting the reference to next tail must be done **after** `next_tail.into()`,
-                        //  because `next_tail.into()` is a `self` call on a `&mut`,
-                        //  invalidating any prior reference to `next_tail`
-                        previous_tail.set_next_node(next_tail);
-                    }
-                    None => {
-                        debug_assert!(self.head.is_none());
-                        let next_tail = next_tail.into();
-                        self.head = Some(next_tail);
-                        self.tail = Some((next_tail, new_initial));
-                    }
-                }
+        // self.skipped_initials += initial.is_none() as usize;
 
-                self.area_len = 0;
+        let new_initial = self.area[0];
+        let initial = initial.and_then(|i| initial_from_mantissa(i, mantissa));
+        debug_assert!(initial.map_or(true, |n| n < self.area[0]));
+        let size = bp.compress_strictly_sorted(initial, self.area, &mut next_tail.bytes, bits);
+        debug_assert_eq!(next_tail.bytes.len(), size);
+
+        match &mut self.tail {
+            Some((tail, initial)) => {
+                let previous_tail = unsafe { tail.as_ref() };
+                *initial = new_initial;
+                debug_assert!(previous_tail.next_node().is_none());
+                *tail = next_tail.into();
+                // **WARNING**: setting the reference to next tail must be done **after** `next_tail.into()`,
+                //  because `next_tail.into()` is a `self` call on a `&mut`,
+                //  invalidating any prior reference to `next_tail`
+                previous_tail.set_next_node(next_tail);
+            }
+            None => {
+                debug_assert!(self.head.is_none());
+                let next_tail = next_tail.into();
+                self.head = Some(next_tail);
+                self.tail = Some((next_tail, new_initial));
             }
         }
+
+        self.area_len = 0;
     }
 }
 
