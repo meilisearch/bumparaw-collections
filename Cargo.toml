@@ -1,6 +1,6 @@
 [package]
 name = "bumparaw-collections"
-version = "0.1.2"
+version = "0.1.3"
 description = "A small set of bumpalo-backed collections for low-level operations"
 authors = ["Louis Dureuil <louis@meilisearch.com>", "Kerollmops <clement@meilisearch.com>"]
 license = "MIT"
