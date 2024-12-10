@@ -32,6 +32,7 @@ impl<'bump> Iterator for Values<'bump, '_> {
 ///
 /// Iterates in first-insertion order.
 pub struct Iter<'bump, 'a>(std::slice::Iter<'a, (&'bump str, &'bump RawValue)>);
+
 impl<'bump> Iterator for Iter<'bump, '_> {
     type Item = (&'bump str, &'bump RawValue);
 
@@ -41,9 +42,8 @@ impl<'bump> Iterator for Iter<'bump, '_> {
     }
 }
 
-impl<'bump> IntoIterator for RawMap<'bump> {
+impl<'bump, S> IntoIterator for RawMap<'bump, S> {
     type Item = (&'bump str, &'bump RawValue);
-
     type IntoIter = IntoIter<'bump>;
 
     #[inline]
@@ -58,6 +58,7 @@ impl<'bump> IntoIterator for RawMap<'bump> {
 pub struct IntoIter<'bump>(
     bumpalo::collections::vec::IntoIter<'bump, (&'bump str, &'bump RawValue)>,
 );
+
 impl<'bump> Iterator for IntoIter<'bump> {
     type Item = (&'bump str, &'bump RawValue);
 
@@ -67,7 +68,7 @@ impl<'bump> Iterator for IntoIter<'bump> {
     }
 }
 
-impl<'bump, 'a> IntoIterator for &'a RawMap<'bump> {
+impl<'bump, 'a, S> IntoIterator for &'a RawMap<'bump, S> {
     type Item = (&'bump str, &'bump RawValue);
 
     type IntoIter = Iter<'bump, 'a>;
@@ -78,7 +79,7 @@ impl<'bump, 'a> IntoIterator for &'a RawMap<'bump> {
     }
 }
 
-impl<'bump> RawMap<'bump> {
+impl<'bump, S> RawMap<'bump, S> {
     /// Iterates over the (key, value) pairs of the map in first-insertion order.
     #[inline]
     pub fn iter(&self) -> Iter<'bump, '_> {

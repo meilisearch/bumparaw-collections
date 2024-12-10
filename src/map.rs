@@ -1,3 +1,5 @@
+use std::hash::BuildHasher;
+
 use bumpalo::Bump;
 use hashbrown::DefaultHashBuilder;
 use serde::{ser::SerializeMap, Serialize};
@@ -21,16 +23,16 @@ pub mod iter;
 ///
 /// All allocations happen in the associated [`Bump`].
 #[derive(Debug)]
-pub struct RawMap<'bump> {
+pub struct RawMap<'bump, S = DefaultHashBuilder> {
     data: BVec<'bump, (&'bump str, &'bump RawValue)>,
-    cache: hashbrown::HashMap<&'bump str, usize, DefaultHashBuilder, &'bump Bump>,
+    cache: hashbrown::HashMap<&'bump str, usize, S, &'bump Bump>,
 }
 
-impl Serialize for RawMap<'_> {
+impl<S> Serialize for RawMap<'_, S> {
     #[inline]
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<SE>(&self, serializer: SE) -> Result<SE::Ok, SE::Error>
     where
-        S: serde::Serializer,
+        SE: serde::Serializer,
     {
         let mut map = serializer.serialize_map(Some(self.len()))?;
         for (key, value) in self {
@@ -40,7 +42,7 @@ impl Serialize for RawMap<'_> {
     }
 }
 
-impl<'bump> RawMap<'bump> {
+impl<'bump> RawMap<'bump, DefaultHashBuilder> {
     /// Constructs a map from a raw value and a bump allocator.
     ///
     /// # Errors
@@ -61,6 +63,22 @@ impl<'bump> RawMap<'bump> {
             data: BVec::new_in(bump),
             cache: hashbrown::HashMap::new_in(bump),
         }
+    }
+}
+
+impl<'bump, S: BuildHasher> RawMap<'bump, S> {
+    /// Constructs a map from a raw value and a bump allocator.
+    ///
+    /// # Errors
+    ///
+    /// - if the raw value cannot be parsed as a map (JSON object).
+    #[inline]
+    pub fn from_raw_value_and_hasher(
+        raw: &'bump RawValue,
+        hash_builder: S,
+        bump: &'bump Bump,
+    ) -> Result<Self, serde_json::Error> {
+        Self::from_deserializer_and_hasher(raw, hash_builder, bump)
     }
 
     /// Inserts a new (key, value) pair in the map.
@@ -99,6 +117,28 @@ impl<'bump> RawMap<'bump> {
         self.cache.get(key).copied()
     }
 
+    /// Reserves capacity for at least additional more elements to be inserted in the map.
+    ///
+    /// # Panics
+    ///
+    /// - if the new capacity exceeds [`isize::MAX`].
+    #[inline]
+    pub fn reserve(&mut self, additional: usize) {
+        self.data.reserve(additional);
+        self.cache.reserve(additional);
+    }
+}
+
+impl<'bump, S> RawMap<'bump, S> {
+    /// Constructs an empty map backed by the specified bump allocator.
+    #[inline]
+    pub fn with_hasher_in(hash_builder: S, bump: &'bump Bump) -> Self {
+        Self {
+            data: BVec::new_in(bump),
+            cache: hashbrown::HashMap::with_hasher_in(hash_builder, bump),
+        }
+    }
+
     /// The number of elements in the map.
     #[inline]
     pub fn len(&self) -> usize {
@@ -109,17 +149,6 @@ impl<'bump> RawMap<'bump> {
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
-    }
-
-    /// Reserves capacity for at least additional more elements to be inserted in the map.
-    ///
-    /// # Panics
-    ///
-    /// - if the new capacity exceeds [`isize::MAX`].
-    #[inline]
-    pub fn reserve(&mut self, additional: usize) {
-        self.data.reserve(additional);
-        self.cache.reserve(additional);
     }
 
     /// Returns the underlying vec as a slice.
@@ -142,7 +171,7 @@ impl<'bump> RawMap<'bump> {
 
     /// Makes this map [`Send`] by forbidding any future modifications.
     #[inline]
-    pub fn freeze(&mut self) -> FrozenRawMap<'_, 'bump> {
+    pub fn freeze(&mut self) -> FrozenRawMap<'_, 'bump, S> {
         FrozenRawMap::new(self)
     }
 
@@ -154,21 +183,23 @@ impl<'bump> RawMap<'bump> {
 }
 
 /// A view into a [`RawMap`] that prevents insertions, but can be sent between threads safely.
-pub struct FrozenRawMap<'a, 'bump> {
+pub struct FrozenRawMap<'a, 'bump, S> {
     data: &'a [(&'bump str, &'bump RawValue)],
-    cache: frozen::FrozenMap<'a, 'bump, &'bump str, usize, DefaultHashBuilder>,
+    cache: frozen::FrozenMap<'a, 'bump, &'bump str, usize, S>,
 }
 
-impl<'a, 'bump> FrozenRawMap<'a, 'bump> {
+impl<'a, 'bump, S> FrozenRawMap<'a, 'bump, S> {
     /// Makes the passed map [`Send`] by preventing any future modifications.
     #[inline]
-    pub fn new(map: &'a mut RawMap<'bump>) -> Self {
+    pub fn new(map: &'a mut RawMap<'bump, S>) -> Self {
         FrozenRawMap {
             data: map.data.as_slice(),
             cache: frozen::FrozenMap::new(&mut map.cache),
         }
     }
+}
 
+impl<'bump, S: BuildHasher> FrozenRawMap<'_, 'bump, S> {
     /// Retrieves the value associated with a key, if present.
     #[inline]
     pub fn get(&self, key: &str) -> Option<&'bump RawValue> {
@@ -181,7 +212,9 @@ impl<'a, 'bump> FrozenRawMap<'a, 'bump> {
     pub fn get_index(&self, key: &str) -> Option<usize> {
         self.cache.get(key).copied()
     }
+}
 
+impl<'a, 'bump, S> FrozenRawMap<'a, 'bump, S> {
     /// The number of elements in the map.
     #[inline]
     pub fn len(&self) -> usize {
