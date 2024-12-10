@@ -1,3 +1,4 @@
+use std::fmt;
 use std::hash::BuildHasher;
 
 use bumpalo::Bump;
@@ -8,7 +9,6 @@ use serde::de::Visitor;
 use serde_json::value::RawValue;
 
 /// Represents a partially parsed JSON value referencing the underlying data.
-#[derive(Debug)]
 pub enum Value<'bump, S = DefaultHashBuilder> {
     /// A JSON null value.
     Null,
@@ -177,5 +177,19 @@ impl<'de, S: BuildHasher> Visitor<'de> for ValueVisitor<'de, S> {
             object.insert(key, value);
         }
         Ok(Value::Object(object))
+    }
+}
+
+impl<S> fmt::Debug for Value<'_, S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Value::")?;
+        match self {
+            Value::Null => f.debug_tuple("Null").finish(),
+            Value::Bool(boolean) => f.debug_tuple("Bool").field(&boolean).finish(),
+            Value::Number(number) => f.debug_tuple("Number").field(&number).finish(),
+            Value::String(string) => f.debug_tuple("String").field(&string).finish(),
+            Value::Array(array) => f.debug_tuple("Array").field(array).finish(),
+            Value::Object(object) => f.debug_tuple("Object").field(object).finish(),
+        }
     }
 }
