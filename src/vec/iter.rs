@@ -4,7 +4,7 @@ use crate::RawVec;
 
 /// An iterator over the values of a [`RawVec`].
 pub struct Iter<'bump, 'a>(std::slice::Iter<'a, &'bump RawValue>);
-impl<'bump, 'a> Iterator for Iter<'bump, 'a> {
+impl<'bump> Iterator for Iter<'bump, '_> {
     type Item = &'bump RawValue;
 
     #[inline]

@@ -17,7 +17,7 @@ pub struct FrozenMap<'a, 'bump, K, V, S>(&'a mut hashbrown::HashMap<K, V, S, &'b
 /// - The FrozenMap does not leak a shared reference to the allocator **or its inner hashmap**.
 ///
 /// So, it is safe to send the contained shared reference to the allocator
-unsafe impl<'a, 'bump, K, V, S> Send for FrozenMap<'a, 'bump, K, V, S>
+unsafe impl<K, V, S> Send for FrozenMap<'_, '_, K, V, S>
 where
     K: Send,
     V: Send,
@@ -81,7 +81,7 @@ impl<'a, 'bump, K, V, S> FrozenMap<'a, 'bump, K, V, S> {
     }
 }
 
-impl<'a, 'bump, K, V, S> FrozenMap<'a, 'bump, K, V, S>
+impl<K, V, S> FrozenMap<'_, '_, K, V, S>
 where
     K: Eq + Hash,
     S: std::hash::BuildHasher,
@@ -211,7 +211,7 @@ where
     }
 }
 
-impl<'a, 'bump, K, V, S> FrozenMap<'a, 'bump, K, V, S> {
+impl<'bump, K, V, S> FrozenMap<'_, 'bump, K, V, S> {
     /// Creates a raw immutable entry builder for the map.
     ///
     /// Raw entries provide the lowest level of control for searching and manipulating a map. They must be manually initialized with a hash and then manually searched.
@@ -257,7 +257,7 @@ pub struct FrozenRawEntryBuilderMut<'a, 'bump, K, V, S>(
     RawEntryBuilderMut<'a, K, V, S, &'bump Bump>,
 );
 
-impl<'a, 'bump, K, V, S> FrozenRawEntryBuilderMut<'a, 'bump, K, V, S> {
+impl<'a, K, V, S> FrozenRawEntryBuilderMut<'a, '_, K, V, S> {
     /// Creates a [`FrozenRawEntryBuilderMut`] from the given key.
     #[allow(clippy::wrong_self_convention)] // blame hashbrown
     #[inline]

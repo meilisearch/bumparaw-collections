@@ -51,19 +51,19 @@ fn test_ref_allocator() {
 fn test_ref_map() {
     struct RefStr<'bump>(pub Ref<'bump, str>);
 
-    impl<'bump> std::hash::Hash for RefStr<'bump> {
+    impl std::hash::Hash for RefStr<'_> {
         fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
             self.0.hash(state);
         }
     }
 
-    impl<'bump> PartialEq for RefStr<'bump> {
+    impl PartialEq for RefStr<'_> {
         fn eq(&self, other: &Self) -> bool {
             self.0.deref() == other.0.deref()
         }
     }
 
-    impl<'bump> Eq for RefStr<'bump> {}
+    impl Eq for RefStr<'_> {}
 
     let bump = RefCell::new(Bump::new());
     let bump_ref = RefBump::new(bump.borrow());

@@ -26,7 +26,7 @@ pub struct RawMap<'bump> {
     cache: hashbrown::HashMap<&'bump str, usize, DefaultHashBuilder, &'bump Bump>,
 }
 
-impl<'bump> Serialize for RawMap<'bump> {
+impl Serialize for RawMap<'_> {
     #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

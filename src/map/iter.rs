@@ -6,7 +6,7 @@ use crate::RawMap;
 ///
 /// Iterates in first-insertion order.
 pub struct Keys<'bump, 'a>(std::slice::Iter<'a, (&'bump str, &'bump RawValue)>);
-impl<'a, 'bump> Iterator for Keys<'bump, 'a> {
+impl<'bump> Iterator for Keys<'bump, '_> {
     type Item = &'bump str;
 
     #[inline]
@@ -19,7 +19,7 @@ impl<'a, 'bump> Iterator for Keys<'bump, 'a> {
 ///
 /// Iterates in first-insertion order.
 pub struct Values<'bump, 'a>(std::slice::Iter<'a, (&'bump str, &'bump RawValue)>);
-impl<'a, 'bump> Iterator for Values<'bump, 'a> {
+impl<'bump> Iterator for Values<'bump, '_> {
     type Item = &'bump RawValue;
 
     #[inline]
@@ -32,7 +32,7 @@ impl<'a, 'bump> Iterator for Values<'bump, 'a> {
 ///
 /// Iterates in first-insertion order.
 pub struct Iter<'bump, 'a>(std::slice::Iter<'a, (&'bump str, &'bump RawValue)>);
-impl<'bump, 'a> Iterator for Iter<'bump, 'a> {
+impl<'bump> Iterator for Iter<'bump, '_> {
     type Item = (&'bump str, &'bump RawValue);
 
     #[inline]

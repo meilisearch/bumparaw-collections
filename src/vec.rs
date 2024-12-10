@@ -14,7 +14,7 @@ pub mod iter;
 #[derive(Debug)]
 pub struct RawVec<'bump>(BVec<'bump, &'bump RawValue>);
 
-impl<'bump> Serialize for RawVec<'bump> {
+impl Serialize for RawVec<'_> {
     #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

@@ -68,13 +68,13 @@ impl<'bump> Deref for RefBump<'bump> {
     }
 }
 
-impl<'bump> DerefMut for RefBump<'bump> {
+impl DerefMut for RefBump<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-unsafe impl<'bump> Allocator for RefBump<'bump> {
+unsafe impl Allocator for RefBump<'_> {
     #[inline]
     fn allocate(
         &self,
@@ -139,27 +139,27 @@ unsafe impl<'bump> Allocator for RefBump<'bump> {
 #[derive(Debug)]
 pub struct RefStr<'bump>(pub Ref<'bump, str>);
 
-impl<'bump> std::hash::Hash for RefStr<'bump> {
+impl std::hash::Hash for RefStr<'_> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }
 }
 
-impl<'bump> PartialEq for RefStr<'bump> {
+impl PartialEq for RefStr<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.0.deref() == other.0.deref()
     }
 }
 
-impl<'bump> Eq for RefStr<'bump> {}
+impl Eq for RefStr<'_> {}
 
-impl<'bump> Borrow<str> for RefStr<'bump> {
+impl Borrow<str> for RefStr<'_> {
     fn borrow(&self) -> &str {
         self
     }
 }
 
-impl<'bump> Deref for RefStr<'bump> {
+impl Deref for RefStr<'_> {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
@@ -167,7 +167,7 @@ impl<'bump> Deref for RefStr<'bump> {
     }
 }
 
-impl<'bump> AsRef<str> for RefStr<'bump> {
+impl AsRef<str> for RefStr<'_> {
     fn as_ref(&self) -> &str {
         self
     }
@@ -177,27 +177,27 @@ impl<'bump> AsRef<str> for RefStr<'bump> {
 #[derive(Debug)]
 pub struct RefBytes<'bump>(pub Ref<'bump, [u8]>);
 
-impl<'bump> std::hash::Hash for RefBytes<'bump> {
+impl std::hash::Hash for RefBytes<'_> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }
 }
 
-impl<'bump> PartialEq for RefBytes<'bump> {
+impl PartialEq for RefBytes<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.0.deref() == other.0.deref()
     }
 }
 
-impl<'bump> Eq for RefBytes<'bump> {}
+impl Eq for RefBytes<'_> {}
 
-impl<'bump> Borrow<[u8]> for RefBytes<'bump> {
+impl Borrow<[u8]> for RefBytes<'_> {
     fn borrow(&self) -> &[u8] {
         self
     }
 }
 
-impl<'bump> Deref for RefBytes<'bump> {
+impl Deref for RefBytes<'_> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -205,7 +205,7 @@ impl<'bump> Deref for RefBytes<'bump> {
     }
 }
 
-impl<'bump> AsRef<[u8]> for RefBytes<'bump> {
+impl AsRef<[u8]> for RefBytes<'_> {
     fn as_ref(&self) -> &[u8] {
         self
     }
