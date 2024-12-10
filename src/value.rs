@@ -1,4 +1,7 @@
+use std::hash::BuildHasher;
+
 use bumpalo::Bump;
+use hashbrown::DefaultHashBuilder;
 use serde::de::Deserializer as _;
 use serde::de::Visitor;
 
@@ -6,7 +9,7 @@ use serde_json::value::RawValue;
 
 /// Represents a partially parsed JSON value referencing the underlying data.
 #[derive(Debug)]
-pub enum Value<'bump> {
+pub enum Value<'bump, S = DefaultHashBuilder> {
     /// A JSON null value.
     Null,
     /// A JSON boolean.
@@ -18,7 +21,7 @@ pub enum Value<'bump> {
     /// A JSON array.
     Array(crate::RawVec<'bump>),
     /// A JSON object.
-    Object(crate::RawMap<'bump>),
+    Object(crate::RawMap<'bump, S>),
 }
 
 #[derive(Debug)]
@@ -42,16 +45,35 @@ impl<'de, 'bump: 'de> Value<'de> {
         raw: &'de RawValue,
         bump: &'bump Bump,
     ) -> Result<Value<'de>, serde_json::Error> {
-        raw.deserialize_any(ValueVisitor { bump })
+        raw.deserialize_any(ValueVisitor {
+            bump,
+            hash_builder: DefaultHashBuilder::default(),
+        })
     }
 }
 
-struct ValueVisitor<'bump> {
-    bump: &'bump Bump,
+impl<'de, 'bump: 'de, S: BuildHasher> Value<'de, S> {
+    /// Constructs a value by parsing the top level of a [`serde_json::value::RawValue`].
+    ///
+    /// The resulting value will refer to the underlying JSON data as much as possible.
+    /// Any allocation that needs to occur (e.g., map nodes or escaped strings) will take place in the
+    /// provided [`bumpalo::Bump`].
+    pub fn from_raw_value_and_hasher(
+        raw: &'de RawValue,
+        hash_builder: S,
+        bump: &'bump Bump,
+    ) -> Result<Value<'de, S>, serde_json::Error> {
+        raw.deserialize_any(ValueVisitor { bump, hash_builder })
+    }
 }
 
-impl<'de> Visitor<'de> for ValueVisitor<'de> {
-    type Value = Value<'de>;
+struct ValueVisitor<'bump, S> {
+    bump: &'bump Bump,
+    hash_builder: S,
+}
+
+impl<'de, S: BuildHasher> Visitor<'de> for ValueVisitor<'de, S> {
+    type Value = Value<'de, S>;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(formatter, "any valid JSON value")
@@ -146,7 +168,7 @@ impl<'de> Visitor<'de> for ValueVisitor<'de> {
     where
         A: serde::de::MapAccess<'de>,
     {
-        let mut object = crate::RawMap::new_in(self.bump);
+        let mut object = crate::RawMap::with_hasher_in(self.hash_builder, self.bump);
         if let Some(size_hint) = map.size_hint() {
             object.reserve(size_hint);
         }
