@@ -1,3 +1,4 @@
+use std::fmt;
 use std::hash::BuildHasher;
 
 use bumpalo::Bump;
@@ -6,6 +7,9 @@ use serde::{ser::SerializeMap, Serialize};
 use serde_json::value::RawValue;
 
 use bumpalo::collections::Vec as BVec;
+
+pub use frozen::FrozenMap;
+pub use frozen::FrozenRawEntryBuilderMut;
 
 mod de;
 mod frozen;
@@ -22,7 +26,6 @@ pub mod iter;
 /// will respect the order of the first insertion.
 ///
 /// All allocations happen in the associated [`Bump`].
-#[derive(Debug)]
 pub struct RawMap<'bump, S = DefaultHashBuilder> {
     data: BVec<'bump, (&'bump str, &'bump RawValue)>,
     cache: hashbrown::HashMap<&'bump str, usize, S, &'bump Bump>,
@@ -182,6 +185,12 @@ impl<'bump, S> RawMap<'bump, S> {
     }
 }
 
+impl<S> fmt::Debug for RawMap<'_, S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RawMap").field("data", &self.data).finish()
+    }
+}
+
 /// A view into a [`RawMap`] that prevents insertions, but can be sent between threads safely.
 pub struct FrozenRawMap<'a, 'bump, S> {
     data: &'a [(&'bump str, &'bump RawValue)],
@@ -234,5 +243,10 @@ impl<'a, 'bump, S> FrozenRawMap<'a, 'bump, S> {
     }
 }
 
-pub use frozen::FrozenMap;
-pub use frozen::FrozenRawEntryBuilderMut;
+impl<S> fmt::Debug for FrozenRawMap<'_, '_, S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FrozenRawMap")
+            .field("data", &self.data)
+            .finish()
+    }
+}
