@@ -1,4 +1,7 @@
-use std::hash::{BuildHasher, Hash};
+use std::{
+    fmt,
+    hash::{BuildHasher, Hash},
+};
 
 use bumpalo::Bump;
 use hashbrown::{
@@ -247,6 +250,12 @@ impl<'bump, K, V, S> FrozenMap<'_, 'bump, K, V, S> {
     #[inline]
     pub fn raw_entry_mut(&mut self) -> FrozenRawEntryBuilderMut<'_, 'bump, K, V, S> {
         FrozenRawEntryBuilderMut(self.0.raw_entry_mut())
+    }
+}
+
+impl<K: fmt::Debug, V: fmt::Debug, S> fmt::Debug for FrozenMap<'_, '_, K, V, S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("FrozenMap").field(&self.0).finish()
     }
 }
 
