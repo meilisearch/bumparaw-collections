@@ -1,5 +1,11 @@
 [package]
-name = "raw-collections"
+name = "bumparaw-collections"
+description = "A small set of bumpalo-backed collections for low-level operations"
+authors = ["Louis Dureuil <louis@meilisearch.com>", "Kerollmops <clement@meilisearch.com>"]
+license = "MIT"
+repository = "https://github.com/meilisearch/bumparaw-collections"
+keywords = ["bumpalo", "collections", "serde", "json", "bitpacking"]
+categories = ["algorithms", "data-structures"]
 version = "0.1.0"
 edition = "2021"
 
