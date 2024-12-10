@@ -8,8 +8,9 @@ use bumpalo::Bump;
 
 pub use bitpacking::{BitPacker, BitPacker1x, BitPacker4x, BitPacker8x};
 
-/// A `Bbbul` is a list of arbitrary `u32`s that can be only read once
-/// it as been frozzen by casting or wrapping it into a [`FrozenBbbul`].
+/// A Bit-packed Bumpalo-Based Unsigned integers Linked-list is a list
+/// of arbitrary `u32`s that can be only read once it as been frozzen
+/// by casting or wrapping it into a [`FrozenBbbul`].
 ///
 /// ```
 /// use std::collections::HashSet;
@@ -241,11 +242,11 @@ impl<'bump, B> FrozenBbbul<'bump, B> {
 /// - The FrozenBbbul does not leak a shared reference to the allocator.
 ///
 /// So, it is safe to send the contained shared reference to the allocator
-unsafe impl<'bump, B> Send for FrozenBbbul<'bump, B> {}
+unsafe impl<B> Send for FrozenBbbul<'_, B> {}
 
 /// An non-standard iterator over the `u32`s in the [`FrozenBbbul`] type.
 ///
-/// Returns the `u32`s in arbitrary order.
+/// Returns slices of ordered `u32`s.
 pub struct IterAndClear<'bump, B> {
     area_len: usize,
     area: &'bump mut [u32],
