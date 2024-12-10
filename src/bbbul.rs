@@ -14,7 +14,7 @@ pub use bitpacking::{BitPacker, BitPacker1x, BitPacker4x, BitPacker8x};
 ///
 /// ```
 /// use std::collections::HashSet;
-/// use raw_collections::{FrozenBbbul, Bbbul};
+/// use bumparaw_collections::{FrozenBbbul, Bbbul};
 /// use bitpacking::BitPacker4x;
 ///
 /// let bump = bumpalo::Bump::new();
