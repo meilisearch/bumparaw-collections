@@ -58,13 +58,21 @@ struct Node {
     next_node_len: Cell<u32>,
     num_bits: u8,
     mantissa: u8,
+    // Pad the header on 32-bit targets so the base header size becomes 16 bytes,
+    // matching the 64-bit layout. This keeps the rest of the allocation logic
+    // and the static layout assertion consistent across pointer widths.
     #[cfg(target_pointer_width = "32")]
     _pad: u32,
     bytes: [u8],
 }
 
 impl Node {
+    // Compute BASE_SIZE to match the actual struct layout for the current pointer width.
+    #[cfg(target_pointer_width = "64")]
     const BASE_SIZE: usize = mem::size_of::<(Option<NonNull<u8>>, u32, u8, u8)>();
+
+    #[cfg(target_pointer_width = "32")]
+    const BASE_SIZE: usize = mem::size_of::<(Option<NonNull<u8>>, u32, u8, u8, u32)>();
 
     #[allow(clippy::mut_from_ref)]
     fn new_in(block_size: usize, bump: &Bump) -> &mut Node {
