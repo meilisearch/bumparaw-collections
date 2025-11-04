@@ -58,6 +58,8 @@ struct Node {
     next_node_len: Cell<u32>,
     num_bits: u8,
     mantissa: u8,
+    #[cfg(target_pointer_width = "32")]
+    _pad: u32,
     bytes: [u8],
 }
 
