@@ -67,12 +67,7 @@ struct Node {
 }
 
 impl Node {
-    // Compute BASE_SIZE to match the actual struct layout for the current pointer width.
-    #[cfg(target_pointer_width = "64")]
-    const BASE_SIZE: usize = mem::size_of::<(Option<NonNull<u8>>, u32, u8, u8)>();
-
-    #[cfg(target_pointer_width = "32")]
-    const BASE_SIZE: usize = mem::size_of::<(Option<NonNull<u8>>, u32, u8, u8, u32)>();
+    const BASE_SIZE: usize = mem::offset_of!(Node, bytes);
 
     #[allow(clippy::mut_from_ref)]
     fn new_in(block_size: usize, bump: &Bump) -> &mut Node {
