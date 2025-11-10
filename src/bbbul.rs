@@ -49,7 +49,7 @@ pub struct Bbbul<'bump, B> {
 
 #[derive(Debug)]
 #[repr(C)]
-struct Node {
+struct NodeHeader {
     // use interior mutability:
     // as the predecessor node has a link to this node by the time this node
     // is mutated to link to its successor node, it is no longer possible to
@@ -63,11 +63,17 @@ struct Node {
     // and the static layout assertion consistent across pointer widths.
     #[cfg(target_pointer_width = "32")]
     _pad: u32,
+}
+
+#[derive(Debug)]
+#[repr(C)]
+struct Node {
+    header: NodeHeader,
     bytes: [u8],
 }
 
 impl Node {
-    const BASE_SIZE: usize = mem::offset_of!(Node, bytes);
+    const BASE_SIZE: usize = mem::size_of::<NodeHeader>();
 
     #[allow(clippy::mut_from_ref)]
     fn new_in(block_size: usize, bump: &Bump) -> &mut Node {
@@ -85,15 +91,15 @@ impl Node {
 
     fn set_next_node(&self, node: &Node) {
         let len = node.bytes.len();
-        self.next_node_len.set(len.try_into().unwrap());
-        self.next_node
+        self.header.next_node_len.set(len.try_into().unwrap());
+        self.header.next_node
             .set(NonNull::new((node as *const Node) as *mut u8));
     }
 
     fn next_node(&self) -> Option<&Node> {
-        self.next_node
+        self.header.next_node
             .get()
-            .map(|data| unsafe { &*fatten(data, self.next_node_len.get() as usize) })
+            .map(|data| unsafe { &*fatten(data, self.header.next_node_len.get() as usize) })
     }
 }
 
@@ -164,8 +170,8 @@ impl<'bump, B: BitPacker> Bbbul<'bump, B> {
 
         let next_tail = Node::new_in(block_size, self.bump);
         debug_assert_eq!(next_tail.bytes.len(), block_size);
-        next_tail.num_bits = bits;
-        next_tail.mantissa = mantissa;
+        next_tail.header.num_bits = bits;
+        next_tail.header.mantissa = mantissa;
         debug_assert!(next_tail.next_node().is_none());
 
         // self.skipped_initials += initial.is_none() as usize;
@@ -275,12 +281,12 @@ impl<B: BitPacker> IterAndClear<'_, B> {
             self.head = node.next_node();
 
             let bp = B::new();
-            let mantissa = node.mantissa;
+            let mantissa = node.header.mantissa;
             let initial = self
                 .initial
                 .and_then(|i| initial_from_mantissa(i, mantissa));
             let read_bytes =
-                bp.decompress_strictly_sorted(initial, &node.bytes, self.area, node.num_bits);
+                bp.decompress_strictly_sorted(initial, &node.bytes, self.area, node.header.num_bits);
             debug_assert_eq!(read_bytes, node.bytes.len());
             self.initial = Some(self.area[0]);
 
