@@ -24,7 +24,7 @@ pub enum Value<'bump, S = DefaultHashBuilder> {
     Object(crate::RawMap<'bump, S>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 /// A JSON number
 pub enum Number {
     /// Positive JSON number up to [`u64::MAX`]
@@ -33,6 +33,34 @@ pub enum Number {
     NegInt(i64),
     /// Any other JSON number
     Finite(f64),
+}
+
+impl Number {
+    /// A `f64` representation of the number.
+    pub fn to_f64(self) -> f64 {
+        match self {
+            Number::PosInt(n) => n as _,
+            Number::NegInt(n) => n as _,
+            Number::Finite(n) => n,
+        }
+    }
+
+    /// A [`serde_json::Number`] representation of the number.
+    ///
+    /// # Panics
+    ///
+    /// - If the number is infinite of NaN. This doesn't happen under normal JSON-parsing condition,
+    ///   but would if directly creating `Number::Finite(NaN)`...
+    pub fn to_serde_json(self) -> serde_json::Number {
+        serde_json::Number::from_f64(self.to_f64()).unwrap()
+    }
+}
+
+impl std::fmt::Display for Number {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // reuse the optimized display implementation from serde_json
+        self.to_serde_json().fmt(f)
+    }
 }
 
 impl<'de, 'bump: 'de> Value<'de> {
