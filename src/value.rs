@@ -52,7 +52,11 @@ impl Number {
     /// - If the number is infinite or NaN. This doesn't happen under normal JSON-parsing conditions,
     ///   but would if directly creating `Number::Finite(NaN)`...
     pub fn to_serde_json(self) -> serde_json::Number {
-        serde_json::Number::from_f64(self.to_f64()).unwrap()
+        match self {
+            Number::PosInt(n) => serde_json::Number::from(n),
+            Number::NegInt(n) => serde_json::Number::from(n),
+            Number::Finite(n) => serde_json::Number::from_f64(n).unwrap(),
+        }
     }
 }
 
