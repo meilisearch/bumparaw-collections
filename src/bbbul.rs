@@ -77,6 +77,7 @@ impl Node {
 
     #[allow(clippy::mut_from_ref)]
     fn new_in(block_size: usize, bump: &Bump) -> &mut Node {
+        check_node_base_size();
         let total_size = Self::BASE_SIZE + block_size;
         let align = mem::align_of::<Option<NonNull<Node>>>();
         let layout = Layout::from_size_align(total_size, align).unwrap();
@@ -101,6 +102,15 @@ impl Node {
             .get()
             .map(|data| unsafe { &*fatten(data, self.header.next_node_len.get() as usize) })
     }
+}
+
+fn check_node_base_size() {
+    let size = Node::BASE_SIZE;
+    debug_assert!(
+        size == 16,
+        "⚠️ Node::BASE_SIZE is {}, but expected 16 — check architecture assumptions",
+        size
+    );
 }
 
 impl<'bump, B: BitPacker> Bbbul<'bump, B> {
@@ -305,11 +315,6 @@ fn initial_from_mantissa(initial: u32, mantissa: u8) -> Option<u32> {
 unsafe fn fatten(data: NonNull<u8>, len: usize) -> *mut Node {
     ptr::slice_from_raw_parts_mut(data.as_ptr(), len) as *mut Node
 }
-
-/// Make sure that Node base size has a size of 16 bytes.
-const _NODE_SIZE_16: () = if Node::BASE_SIZE != 16 {
-    unreachable!()
-};
 
 /// Make sure that Bbbul does not need drop.
 const _BBBUL_NEEDS_DROP: () = if needs_drop::<Bbbul<bitpacking::BitPacker4x>>() {
