@@ -10,6 +10,11 @@ pub mod alloc;
 pub mod bbbul;
 /// Contains advanced type for [`bumpalo`]-enabled deserialization.
 pub mod de;
+/// Contains a trait related to the ability to "freeze" an object.
+///
+/// A frozen object is no longer mutable, but instead gains the ability to become [`Send`].
+/// This is useful for objects containing referencing to a [`bumpalo::Bump`], because [`bumpalo::Bump`] is not [`Sync`].
+pub mod frozen;
 /// Contains a simple `str` interner
 pub mod interner;
 /// Contains [`crate::map::RawMap`], [`crate::map::FrozenMap`] and associated types.
