@@ -15,6 +15,7 @@ pub use bitpacking::{BitPacker, BitPacker1x, BitPacker4x, BitPacker8x};
 /// ```
 /// use std::collections::HashSet;
 /// use bumparaw_collections::{FrozenBbbul, Bbbul};
+/// use bumparaw_collections::frozen::Freezable;
 /// use bitpacking::BitPacker4x;
 ///
 /// let bump = bumpalo::Bump::new();
@@ -24,7 +25,7 @@ pub use bitpacking::{BitPacker, BitPacker1x, BitPacker4x, BitPacker8x};
 ///     bbbul.insert(n);
 /// }
 ///
-/// let mut frozen = FrozenBbbul::new(bbbul);
+/// let mut frozen = bbbul.freeze();
 /// let mut iter = frozen.iter_and_clear();
 /// let mut expected: HashSet<u32> = (0..10000).collect();
 /// while let Some(block) = iter.next_block() {
@@ -92,12 +93,14 @@ impl Node {
     fn set_next_node(&self, node: &Node) {
         let len = node.bytes.len();
         self.header.next_node_len.set(len.try_into().unwrap());
-        self.header.next_node
+        self.header
+            .next_node
             .set(NonNull::new((node as *const Node) as *mut u8));
     }
 
     fn next_node(&self) -> Option<&Node> {
-        self.header.next_node
+        self.header
+            .next_node
             .get()
             .map(|data| unsafe { &*fatten(data, self.header.next_node_len.get() as usize) })
     }
@@ -206,20 +209,16 @@ impl<'bump, B: BitPacker> Bbbul<'bump, B> {
 }
 
 /// A frozen version of the [`Bbbul`] type.
-///
-/// It is safe to cast the `Bbbul` type into this struct as it is just a transparant
-/// wrapper struct.
-#[repr(transparent)]
-pub struct FrozenBbbul<'bump, B>(Bbbul<'bump, B>);
+pub struct FrozenBbbul<'a, 'bump, B>(&'a mut Bbbul<'bump, B>);
 
-impl<'bump, B> FrozenBbbul<'bump, B> {
+impl<'a, 'bump, B> FrozenBbbul<'a, 'bump, B> {
     /// Creates a `FrozenBbbul` that is `Send` and will never drop, allocate nor deallocate anything.
-    pub fn new(mut bbbul: Bbbul<'bump, B>) -> FrozenBbbul<'bump, B> {
+    pub fn new(bbbul: &'a mut Bbbul<'bump, B>) -> FrozenBbbul<'a, 'bump, B> {
         // We must make sure we do not read nodes while we have still
         // have a mutable reference on one of them. So, we remove the
         // &mut Node in the tail and only keep the head NonNull<Node>.
         bbbul.tail = None;
-        // eprintln!("skipped {}", bbbul.skipped_initials);
+
         FrozenBbbul(bbbul)
     }
 
@@ -253,7 +252,15 @@ impl<'bump, B> FrozenBbbul<'bump, B> {
 /// - The FrozenBbbul does not leak a shared reference to the allocator.
 ///
 /// So, it is safe to send the contained shared reference to the allocator
-unsafe impl<B> Send for FrozenBbbul<'_, B> {}
+unsafe impl<'a, B> Send for FrozenBbbul<'a, '_, B> {}
+
+unsafe impl<'a, 'b: 'a, B: 'static> crate::frozen::Freezable<'a> for Bbbul<'b, B> {
+    type Frozen = FrozenBbbul<'a, 'b, B>;
+
+    fn freeze(&'a mut self) -> Self::Frozen {
+        Self::Frozen::new(self)
+    }
+}
 
 /// An non-standard iterator over the `u32`s in the [`FrozenBbbul`] type.
 ///
@@ -285,8 +292,12 @@ impl<B: BitPacker> IterAndClear<'_, B> {
             let initial = self
                 .initial
                 .and_then(|i| initial_from_mantissa(i, mantissa));
-            let read_bytes =
-                bp.decompress_strictly_sorted(initial, &node.bytes, self.area, node.header.num_bits);
+            let read_bytes = bp.decompress_strictly_sorted(
+                initial,
+                &node.bytes,
+                self.area,
+                node.header.num_bits,
+            );
             debug_assert_eq!(read_bytes, node.bytes.len());
             self.initial = Some(self.area[0]);
 
@@ -328,6 +339,8 @@ mod tests {
     use bitpacking::{BitPacker1x, BitPacker4x};
     use rand::{RngCore, SeedableRng};
 
+    use crate::frozen::Freezable;
+
     use super::*;
 
     #[test]
@@ -339,7 +352,7 @@ mod tests {
             bbbul.insert(n);
         }
 
-        let mut frozen = FrozenBbbul::new(bbbul);
+        let mut frozen = FrozenBbbul::new(&mut bbbul);
         let mut iter = frozen.iter_and_clear();
         let mut expected: HashSet<u32> = (0..10_000).collect();
         while let Some(block) = iter.next_block() {
@@ -359,7 +372,7 @@ mod tests {
             bbbul.insert(n);
         }
 
-        let mut frozen = FrozenBbbul::new(bbbul);
+        let mut frozen = bbbul.freeze();
         let mut iter = frozen.iter_and_clear();
         while let Some(block) = iter.next_block() {
             block.iter().for_each(|n| assert!(expected.remove(n)));
@@ -383,7 +396,7 @@ mod tests {
             }
         }
 
-        let mut frozen = FrozenBbbul::new(bbbul);
+        let mut frozen = bbbul.freeze();
         let mut iter = frozen.iter_and_clear();
         while let Some(block) = iter.next_block() {
             block
@@ -404,7 +417,7 @@ mod tests {
             bbbul.insert(n);
         }
 
-        let mut frozen = FrozenBbbul::new(bbbul);
+        let mut frozen = bbbul.freeze();
         let mut iter = frozen.iter_and_clear();
         while let Some(block) = iter.next_block() {
             block.iter().for_each(|n| {
