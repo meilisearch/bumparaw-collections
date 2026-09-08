@@ -9,7 +9,6 @@ use serde_json::value::RawValue;
 use bumpalo::collections::Vec as BVec;
 
 pub use frozen::FrozenMap;
-pub use frozen::FrozenRawEntryBuilderMut;
 
 mod de;
 mod frozen;
@@ -172,12 +171,6 @@ impl<'bump, S> RawMap<'bump, S> {
         self.data.into_bump_slice()
     }
 
-    /// Makes this map [`Send`] by forbidding any future modifications.
-    #[inline]
-    pub fn freeze(&mut self) -> FrozenRawMap<'_, 'bump, S> {
-        FrozenRawMap::new(self)
-    }
-
     /// Returns a shared reference to the allocator backing this `Vec`.
     #[inline]
     pub fn bump(&self) -> &'bump Bump {
@@ -188,65 +181,5 @@ impl<'bump, S> RawMap<'bump, S> {
 impl<S> fmt::Debug for RawMap<'_, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RawMap").field("data", &self.data).finish()
-    }
-}
-
-/// A view into a [`RawMap`] that prevents insertions, but can be sent between threads safely.
-pub struct FrozenRawMap<'a, 'bump, S> {
-    data: &'a [(&'bump str, &'bump RawValue)],
-    cache: frozen::FrozenMap<'a, 'bump, &'bump str, usize, S>,
-}
-
-impl<'a, 'bump, S> FrozenRawMap<'a, 'bump, S> {
-    /// Makes the passed map [`Send`] by preventing any future modifications.
-    #[inline]
-    pub fn new(map: &'a mut RawMap<'bump, S>) -> Self {
-        FrozenRawMap {
-            data: map.data.as_slice(),
-            cache: frozen::FrozenMap::new(&mut map.cache),
-        }
-    }
-}
-
-impl<'bump, S: BuildHasher> FrozenRawMap<'_, 'bump, S> {
-    /// Retrieves the value associated with a key, if present.
-    #[inline]
-    pub fn get(&self, key: &str) -> Option<&'bump RawValue> {
-        let index = self.cache.get(key)?;
-        self.data.get(*index).map(|(_, v)| *v)
-    }
-
-    /// Retrieves the index of a key in the data slice, if present.
-    #[inline]
-    pub fn get_index(&self, key: &str) -> Option<usize> {
-        self.cache.get(key).copied()
-    }
-}
-
-impl<'a, 'bump, S> FrozenRawMap<'a, 'bump, S> {
-    /// The number of elements in the map.
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.data.len()
-    }
-
-    /// `true` if there are no elements in the map.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.data.is_empty()
-    }
-
-    /// Returns a reference to the underlying slice.
-    #[inline]
-    pub fn as_slice(&self) -> &'a [(&'bump str, &'bump RawValue)] {
-        self.data
-    }
-}
-
-impl<S> fmt::Debug for FrozenRawMap<'_, '_, S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("FrozenRawMap")
-            .field("data", &self.data)
-            .finish()
     }
 }
