@@ -232,7 +232,7 @@ impl<'bump, B> FrozenBbbul<'bump, B> {
 
     /// Returns wether this `Bbbul` is empty.
     pub fn is_empty(&self) -> bool {
-        self.0.area_len == 0 && self.0.head.is_some()
+        self.0.area_len == 0 && self.0.head.is_none()
     }
 
     /// Gives an iterator of block of integers and clears the `Bbbul` at the same time.
